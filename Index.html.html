@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Vote cocktail — Soirée Damae 16 juin</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:sans-serif;background:#f5f5f5;color:#111;min-height:100vh}
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)}
+.header{text-align:center;padding:1.25rem 1rem .75rem}
+.header h1{font-size:18px;font-weight:500;margin-bottom:4px;line-height:1.3}
+.header p{font-size:13px;color:#666}
+.stats-row{display:flex;align-items:center;justify-content:center;gap:8px;margin-top:8px;flex-wrap:wrap}
+.badge{display:inline-flex;align-items:center;gap:5px;background:#f0f0f0;border:0.5px solid #ddd;border-radius:8px;padding:6px 14px;font-size:13px;color:#555}
+.votes-left-badge{background:#EEEDFE;border-color:#AFA9EC;color:#3C3489}
+.sync-badge{background:#e8f8d0;border-color:#97C459;color:#3B6D11;font-size:12px;padding:4px 10px}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding:.75rem}
+.card{background:#fff;border:0.5px solid #ddd;border-radius:12px;overflow:hidden;display:flex;flex-direction:column}
+.card.voted-card{border:1.5px solid #7F77DD}
+.card-visual{height:80px;display:flex;align-items:center;justify-content:center;font-size:36px}
+.card-body{padding:10px;flex:1;display:flex;flex-direction:column;gap:6px}
+.card-name{font-size:14px;font-weight:500;line-height:1.2}
+.recipe-toggle{font-size:12px;color:#666;cursor:pointer;background:none;border:none;padding:4px 0;text-align:left;min-height:36px;display:flex;align-items:center;gap:4px;-webkit-tap-highlight-color:transparent}
+.recipe-block{font-size:11.5px;color:#666;line-height:1.6;display:none;border-top:0.5px solid #eee;padding-top:8px}
+.recipe-block.open{display:block}
+.bar-wrap{background:#f0f0f0;border-radius:4px;height:5px;overflow:hidden;margin-top:auto}
+.bar-fill{height:100%;border-radius:4px;background:#7F77DD;transition:width .4s ease}
+.vote-row{display:flex;align-items:center;justify-content:space-between}
+.vote-count{font-size:11px;color:#888}
+.vote-pct{font-size:11px;font-weight:500;color:#534AB7}
+.btn-vote{margin-top:4px;width:100%;padding:11px 0;border-radius:8px;border:0.5px solid #ccc;background:transparent;font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:5px;-webkit-tap-highlight-color:transparent;min-height:44px;touch-action:manipulation}
+.btn-vote:active{background:#f0f0f0}
+.btn-vote.selected{background:#EEEDFE;border-color:#7F77DD;color:#3C3489;font-weight:500}
+.btn-vote:disabled:not(.selected){opacity:.4;cursor:default}
+.plus-btn{flex:0 0 44px;padding:11px 0;min-height:44px}
+.winner-banner{margin:0 .75rem .5rem;background:#EEEDFE;border:0.5px solid #AFA9EC;border-radius:12px;padding:10px 14px;font-size:13px;color:#3C3489;display:none;text-align:center}
+.add-section{margin:0 .75rem 1.5rem;background:#fff;border:0.5px dashed #ccc;border-radius:12px;padding:14px}
+.add-title{font-size:13px;font-weight:500;margin-bottom:10px}
+.add-form{display:flex;flex-direction:column;gap:8px}
+.add-form input{width:100%;padding:11px 12px;border:0.5px solid #ccc;border-radius:8px;background:#f5f5f5;font-size:15px;-webkit-appearance:none;min-height:44px;color:#111}
+.add-form input::placeholder{color:#aaa}
+.emoji-row{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.emoji-btn{font-size:20px;background:#f0f0f0;border:0.5px solid #ddd;border-radius:8px;padding:6px 8px;cursor:pointer;min-width:40px;min-height:40px;display:flex;align-items:center;justify-content:center;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+.emoji-btn.active{border-color:#7F77DD;background:#EEEDFE}
+.btn-add{margin-top:10px;width:100%;padding:12px 0;border-radius:8px;border:0.5px solid #AFA9EC;background:#EEEDFE;font-size:14px;cursor:pointer;color:#3C3489;font-weight:500;display:flex;align-items:center;justify-content:center;gap:6px;min-height:44px;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+.voted-row{display:flex;gap:6px;margin-top:4px}
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#333;color:#fff;padding:8px 18px;border-radius:20px;font-size:13px;opacity:0;transition:opacity .3s;pointer-events:none;z-index:999}
+.toast.show{opacity:1}
+</style>
+</head>
+<body>
+
+<h2 class="sr-only">Vote pour le cocktail de la soirée Damae du 16 juin</h2>
+<div class="header">
+  <h1>Quel cocktail pour le 16 juin ?</h1>
+  <p>3 votes à distribuer — soirée Damae Medical</p>
+  <div class="stats-row">
+    <div class="badge">👥 <span id="total-votes">0</span> votes</div>
+    <div class="badge votes-left-badge">⭐ <span id="votes-left">3</span> restants</div>
+    <div class="badge sync-badge" id="sync-badge">⟳ sync...</div>
+  </div>
+</div>
+<div id="winner-banner" class="winner-banner"></div>
+<div id="grid" class="grid"></div>
+<div class="add-section">
+  <div class="add-title">+ Proposer un cocktail</div>
+  <div class="add-form">
+    <input type="text" id="new-name" placeholder="Nom du cocktail" maxlength="40" autocomplete="off" />
+    <input type="text" id="new-recipe" placeholder="Recette (optionnel)" maxlength="200" autocomplete="off" />
+  </div>
+  <div class="emoji-row" id="emoji-row"></div>
+  <button class="btn-add" onclick="addCocktail()">✉ Ajouter</button>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const API = 'https://script.google.com/a/macros/damae-medical.com/s/AKfycbwYUY7ef46g_jlSsYQKT49OlcrmRe3kB-UO3x66ofkF4eQbQ3-zi3DatLZHsMuYhjry/exec';
+const MAX_VOTES = 3;
+const MY_VOTES_KEY = 'cocktail_my_v3';
+const EMOJIS = ['🍹','🍸','🥂','🍷','🥃','🍺','🫧','🍋','🍓','🥭','🍑','🌺','🌴','🫐','🍒','🏖️','🌅','🌿','🥥','🌸'];
+let selectedEmoji = '🍹';
+
+const BASE_COCKTAILS = [
+  {id:'mojito',name:'Mojito',bg:'#d4f4e2',icon:'🍹',recipe:"5 cl rhum blanc · 2 cl sirop de sucre · 1 citron vert · 10 feuilles de menthe · eau gazeuse · glace pilée."},
+  {id:'spritz',name:'Spritz Aperol',bg:'#fde8cc',icon:'🍊',recipe:"9 cl Prosecco · 6 cl Aperol · 3 cl eau gazeuse · 1 tranche d'orange · glaçons."},
+  {id:'spritz_select',name:'Spritz Select',bg:'#fcd5c0',icon:'🍸',recipe:"9 cl Prosecco · 6 cl Select Aperitivo · 3 cl eau gazeuse · 1 olive · glaçons."},
+  {id:'pinacol',name:'Piña Colada',bg:'#fff9d6',icon:'🥥',recipe:"5 cl rhum blanc · 3 cl lait de coco · 10 cl jus d'ananas · glace. Mixer."},
+  {id:'margarita',name:'Margarita',bg:'#e8f8d0',icon:'🍋',recipe:"5 cl tequila · 2 cl triple sec · 3 cl jus de citron vert · sel sur le rebord."},
+  {id:'tequilasunrise',name:'Tequila Sunrise',bg:'#ffe5cc',icon:'🌅',recipe:"4,5 cl tequila · 9 cl jus d'orange · 1,5 cl grenadine · glaçons."},
+  {id:'daiquiri',name:'Daiquiri Fraise',bg:'#fde0e8',icon:'🍓',recipe:"5 cl rhum blanc · 2 cl sirop de sucre · 3 cl citron vert · 6 fraises. Mixer."},
+  {id:'hugo',name:'Hugo',bg:'#e8f0fb',icon:'🌿',recipe:"2 cl sirop de sureau · 6 cl Prosecco · 4 cl eau gazeuse · menthe · citron vert · glaçons."},
+  {id:'sexbeach',name:'Sex on the Beach',bg:'#ffecd6',icon:'🏖️',recipe:"4 cl vodka · 2 cl Peach Schnapps · 4 cl jus d'orange · 4 cl cranberry · glaçons."},
+  {id:'negroni',name:'Negroni',bg:'#fce4d6',icon:'🍷',recipe:"3 cl gin · 3 cl Campari · 3 cl Martini Rouge · zeste d'orange · glaçons."},
+  {id:'cosmopolitan',name:'Cosmopolitan',bg:'#fce0ef',icon:'🌸',recipe:"4 cl vodka · 1,5 cl triple sec · 1,5 cl citron vert · 3 cl cranberry · zeste de citron."},
+  {id:'moscow_mule',name:'Moscow Mule',bg:'#dff5f0',icon:'🫧',recipe:"5 cl vodka · 12 cl ginger beer · 1 cl jus de citron vert · glaçons · menthe."},
+];
+const BG_COLORS = ['#e8f0fb','#d4f4e2','#fde8cc','#fde0e8','#e8f8d0','#fff9d6','#fcd5c0','#ffecd6','#dff5f0','#fce0ef'];
+
+let votes = {};
+let myVotes = {};
+let customCocktails = [];
+let openRecipes = new Set();
+let syncing = false;
+
+function allCocktails() { return [...BASE_COCKTAILS, ...customCocktails]; }
+function totalMyVotes() { return Object.values(myVotes).reduce((a,b) => a+b, 0); }
+function votesLeft() { return MAX_VOTES - totalMyVotes(); }
+function getTotal() { return Object.values(votes).reduce((a,b) => a+b, 0); }
+
+function loadMyVotes() {
+  try { const v = localStorage.getItem(MY_VOTES_KEY); if (v) myVotes = JSON.parse(v); } catch(e) {}
+}
+function saveMyVotes() {
+  try { localStorage.setItem(MY_VOTES_KEY, JSON.stringify(myVotes)); } catch(e) {}
+}
+
+function setSyncBadge(state) {
+  const b = document.getElementById('sync-badge');
+  if (state === 'ok') { b.textContent = '✓ synchronisé'; b.style.background = '#e8f8d0'; b.style.color = '#3B6D11'; b.style.borderColor = '#97C459'; }
+  else if (state === 'syncing') { b.textContent = '⟳ sync...'; b.style.background = '#fff9d6'; b.style.color = '#BA7517'; b.style.borderColor = '#EF9F27'; }
+  else { b.textContent = '✗ hors ligne'; b.style.background = '#FCEBEB'; b.style.color = '#A32D2D'; b.style.borderColor = '#F09595'; }
+}
+
+async function fetchVotes() {
+  setSyncBadge('syncing');
+  try {
+    const r = await fetch(API + '?t=' + Date.now(), {redirect: 'follow'});
+    const data = await r.json();
+    // merge : on garde le max pour éviter d'écraser des votes concurrents
+    allCocktails().forEach(c => {
+      votes[c.id] = data[c.id] !== undefined ? parseInt(data[c.id]) : (votes[c.id] || 0);
+    });
+    // custom cocktails depuis le sheet (clés non présentes dans BASE)
+    Object.keys(data).forEach(k => {
+      if (!allCocktails().find(c => c.id === k)) {
+        // cocktail custom inconnu localement, on ignore (pas de meta)
+      }
+    });
+    setSyncBadge('ok');
+  } catch(e) {
+    setSyncBadge('error');
+  }
+  render();
+}
+
+async function pushVote(id, count) {
+  try {
+    await fetch(API, {
+      method: 'POST',
+      body: JSON.stringify({cocktail_id: id, count: count}),
+      redirect: 'follow'
+    });
+  } catch(e) {}
+}
+
+async function castVote(id) {
+  if (votesLeft() <= 0) return;
+  votes[id] = (votes[id] || 0) + 1;
+  myVotes[id] = (myVotes[id] || 0) + 1;
+  saveMyVotes();
+  render();
+  await pushVote(id, votes[id]);
+  setSyncBadge('ok');
+}
+
+async function removeVote(id) {
+  if ((myVotes[id] || 0) <= 0) return;
+  votes[id] = Math.max(0, (votes[id] || 1) - 1);
+  myVotes[id] = (myVotes[id] || 1) - 1;
+  if (myVotes[id] === 0) delete myVotes[id];
+  saveMyVotes();
+  render();
+  await pushVote(id, votes[id]);
+  setSyncBadge('ok');
+}
+
+async function addCocktail() {
+  const name = document.getElementById('new-name').value.trim();
+  if (!name) return;
+  const recipe = document.getElementById('new-recipe').value.trim();
+  const id = 'custom_' + Date.now();
+  const bg = BG_COLORS[customCocktails.length % BG_COLORS.length];
+  const c = {id, name, bg, icon: selectedEmoji, recipe: recipe || 'Recette à définir.'};
+  customCocktails.push(c);
+  votes[c.id] = 0;
+  document.getElementById('new-name').value = '';
+  document.getElementById('new-recipe').value = '';
+  render();
+  await pushVote(id, 0);
+  showToast('Cocktail ajouté !');
+}
+
+function toggleRecipe(id) { openRecipes.has(id) ? openRecipes.delete(id) : openRecipes.add(id); render(); }
+
+function selectEmoji(e) { selectedEmoji = e; buildEmojiRow(); }
+
+function buildEmojiRow() {
+  document.getElementById('emoji-row').innerHTML = EMOJIS.map(e =>
+    `<button class="emoji-btn${e === selectedEmoji ? ' active' : ''}" onclick="selectEmoji('${e}')">${e}</button>`
+  ).join('');
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2000);
+}
+
+function render() {
+  const total = getTotal(), left = votesLeft();
+  document.getElementById('total-votes').textContent = total;
+  document.getElementById('votes-left').textContent = left;
+
+  let best = null, max = -1;
+  allCocktails().forEach(c => { if ((votes[c.id] || 0) > max) { max = votes[c.id] || 0; best = c; } });
+  const banner = document.getElementById('winner-banner');
+  if (best && total >= 5 && max > 0) {
+    const pct = Math.round((votes[best.id] / total) * 100);
+    banner.innerHTML = '🏆 En tête : <strong>' + best.name + '</strong> — ' + pct + '% des votes';
+    banner.style.display = 'block';
+  } else { banner.style.display = 'none'; }
+
+  const sorted = [...allCocktails()].sort((a,b) => (votes[b.id] || 0) - (votes[a.id] || 0));
+  let html = '';
+  sorted.forEach(c => {
+    const v = votes[c.id] || 0, mv = myVotes[c.id] || 0, pct = total > 0 ? Math.round((v / total) * 100) : 0;
+    const isVoted = mv > 0, canVoteMore = left > 0, recOpen = openRecipes.has(c.id);
+    const dots = Array.from({length: MAX_VOTES}, (_,i) =>
+      `<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${i < mv ? '#7F77DD' : '#ccc'};margin-right:2px"></span>`
+    ).join('');
+    html += `<div class="card${isVoted ? ' voted-card' : ''}">
+      <div class="card-visual" style="background:${c.bg}">${c.icon}</div>
+      <div class="card-body">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:4px">
+          <div class="card-name">${c.name}</div>
+          ${isVoted ? '<div style="flex-shrink:0;padding-top:2px">' + dots + '</div>' : ''}
+        </div>
+        <button class="recipe-toggle" onclick="toggleRecipe('${c.id}')">${recOpen ? '▲ Masquer' : '▼ Recette'}</button>
+        <div class="recipe-block${recOpen ? ' open' : ''}">${c.recipe}</div>
+        <div class="bar-wrap"><div class="bar-fill" style="width:${pct}%"></div></div>
+        <div class="vote-row"><span class="vote-count">${v} vote${v > 1 ? 's' : ''}</span><span class="vote-pct">${pct}%</span></div>
+        ${isVoted
+          ? `<div class="voted-row"><button class="btn-vote selected" onclick="removeVote('${c.id}')" style="flex:1">✓ Voté (${mv})</button>${canVoteMore ? `<button class="btn-vote plus-btn" onclick="castVote('${c.id}')">+</button>` : ''}</div>`
+          : `<button class="btn-vote" onclick="castVote('${c.id}')" ${!canVoteMore ? 'disabled' : ''}>👍 Voter</button>`
+        }
+      </div></div>`;
+  });
+  document.getElementById('grid').innerHTML = html;
+}
+
+async function init() {
+  loadMyVotes();
+  allCocktails().forEach(c => { votes[c.id] = 0; });
+  buildEmojiRow();
+  render();
+  await fetchVotes();
+  setInterval(fetchVotes, 10000);
+}
+
+init();
+</script>
+</body>
+</html>
