@@ -101,7 +101,6 @@ let votes = {};
 let myVotes = {};
 let customCocktails = [];
 let openRecipes = new Set();
-let syncing = false;
 
 function allCocktails() { return [...BASE_COCKTAILS, ...customCocktails]; }
 function totalMyVotes() { return Object.values(myVotes).reduce((a,b) => a+b, 0); }
@@ -122,20 +121,33 @@ function setSyncBadge(state) {
   else { b.textContent = '✗ hors ligne'; b.style.background = '#FCEBEB'; b.style.color = '#A32D2D'; b.style.borderColor = '#F09595'; }
 }
 
+function fetchVotesJsonp() {
+  return new Promise((resolve, reject) => {
+    const cbName = 'cb_' + Date.now();
+    const script = document.createElement('script');
+    const timeout = setTimeout(() => {
+      delete window[cbName];
+      script.remove();
+      reject(new Error('timeout'));
+    }, 8000);
+    window[cbName] = function(data) {
+      clearTimeout(timeout);
+      delete window[cbName];
+      script.remove();
+      resolve(data);
+    };
+    script.src = API + '?callback=' + cbName + '&t=' + Date.now();
+    script.onerror = () => { clearTimeout(timeout); reject(new Error('script error')); };
+    document.head.appendChild(script);
+  });
+}
+
 async function fetchVotes() {
   setSyncBadge('syncing');
   try {
-    const r = await fetch(API + '?t=' + Date.now(), {redirect: 'follow'});
-    const data = await r.json();
-    // merge : on garde le max pour éviter d'écraser des votes concurrents
+    const data = await fetchVotesJsonp();
     allCocktails().forEach(c => {
       votes[c.id] = data[c.id] !== undefined ? parseInt(data[c.id]) : (votes[c.id] || 0);
-    });
-    // custom cocktails depuis le sheet (clés non présentes dans BASE)
-    Object.keys(data).forEach(k => {
-      if (!allCocktails().find(c => c.id === k)) {
-        // cocktail custom inconnu localement, on ignore (pas de meta)
-      }
     });
     setSyncBadge('ok');
   } catch(e) {
@@ -144,14 +156,9 @@ async function fetchVotes() {
   render();
 }
 
-async function pushVote(id, count) {
-  try {
-    await fetch(API, {
-      method: 'POST',
-      body: JSON.stringify({cocktail_id: id, count: count}),
-      redirect: 'follow'
-    });
-  } catch(e) {}
+function pushVote(id, count) {
+  const params = new URLSearchParams({cocktail_id: id, count: count});
+  fetch(API + '?' + params.toString(), {method: 'GET', mode: 'no-cors'}).catch(() => {});
 }
 
 async function castVote(id) {
@@ -160,8 +167,7 @@ async function castVote(id) {
   myVotes[id] = (myVotes[id] || 0) + 1;
   saveMyVotes();
   render();
-  await pushVote(id, votes[id]);
-  setSyncBadge('ok');
+  pushVote(id, votes[id]);
 }
 
 async function removeVote(id) {
@@ -171,8 +177,7 @@ async function removeVote(id) {
   if (myVotes[id] === 0) delete myVotes[id];
   saveMyVotes();
   render();
-  await pushVote(id, votes[id]);
-  setSyncBadge('ok');
+  pushVote(id, votes[id]);
 }
 
 async function addCocktail() {
@@ -187,12 +192,11 @@ async function addCocktail() {
   document.getElementById('new-name').value = '';
   document.getElementById('new-recipe').value = '';
   render();
-  await pushVote(id, 0);
+  pushVote(id, 0);
   showToast('Cocktail ajouté !');
 }
 
 function toggleRecipe(id) { openRecipes.has(id) ? openRecipes.delete(id) : openRecipes.add(id); render(); }
-
 function selectEmoji(e) { selectedEmoji = e; buildEmojiRow(); }
 
 function buildEmojiRow() {
