@@ -75,9 +75,9 @@ body{font-family:sans-serif;background:#f5f5f5;color:#111;min-height:100vh}
 <div class="toast" id="toast"></div>
 
 <script>
-const API = 'https://script.google.com/macros/s/AKfycbzQa6FJqzKyArdOElxlA76TmFi-znIwjzNSI-b20VzAETrqubOjlOQ_k0ZeMDlo-KlKRQ/exec';
+const API = 'https://script.google.com/macros/s/AKfycbwrwbhc6C2Hw6m6VjqpUN5POkHV1rmyx3Mv7s1aM92KuPxYDYTt5lcCKGwo2JkkieeNcg/exec';
 const MAX_VOTES = 3;
-const MY_VOTES_KEY = 'cocktail_my_v3';
+const MY_VOTES_KEY = 'cocktail_my_v4';
 const EMOJIS = ['🍹','🍸','🥂','🍷','🥃','🍺','🫧','🍋','🍓','🥭','🍑','🌺','🌴','🫐','🍒','🏖️','🌅','🌿','🥥','🌸'];
 let selectedEmoji = '🍹';
 
@@ -126,18 +126,13 @@ function fetchVotesJsonp() {
     const cbName = 'cb_' + Date.now();
     const script = document.createElement('script');
     const timeout = setTimeout(() => {
-      delete window[cbName];
-      script.remove();
-      reject(new Error('timeout'));
+      delete window[cbName]; script.remove(); reject(new Error('timeout'));
     }, 8000);
     window[cbName] = function(data) {
-      clearTimeout(timeout);
-      delete window[cbName];
-      script.remove();
-      resolve(data);
+      clearTimeout(timeout); delete window[cbName]; script.remove(); resolve(data);
     };
     script.src = API + '?callback=' + cbName + '&t=' + Date.now();
-    script.onerror = () => { clearTimeout(timeout); reject(new Error('script error')); };
+    script.onerror = () => { clearTimeout(timeout); reject(new Error('error')); };
     document.head.appendChild(script);
   });
 }
@@ -146,8 +141,18 @@ async function fetchVotes() {
   setSyncBadge('syncing');
   try {
     const data = await fetchVotesJsonp();
+    // Mettre à jour les votes
+    const v = data.votes || {};
     allCocktails().forEach(c => {
-      votes[c.id] = data[c.id] !== undefined ? parseInt(data[c.id]) : (votes[c.id] || 0);
+      votes[c.id] = v[c.id] !== undefined ? parseInt(v[c.id]) : (votes[c.id] || 0);
+    });
+    // Mettre à jour les cocktails custom depuis le sheet
+    const customs = data.customs || [];
+    customs.forEach(c => {
+      if (!customCocktails.find(x => x.id === c.id)) {
+        customCocktails.push(c);
+        votes[c.id] = v[c.id] !== undefined ? parseInt(v[c.id]) : 0;
+      }
     });
     setSyncBadge('ok');
   } catch(e) {
@@ -161,12 +166,18 @@ function pushVote(id, count) {
   fetch(API + '?' + params.toString(), {method: 'GET', mode: 'no-cors'}).catch(() => {});
 }
 
+function pushCustom(c) {
+  const params = new URLSearchParams({
+    add_custom: c.id, name: c.name, icon: c.icon, bg: c.bg, recipe: c.recipe
+  });
+  fetch(API + '?' + params.toString(), {method: 'GET', mode: 'no-cors'}).catch(() => {});
+}
+
 async function castVote(id) {
   if (votesLeft() <= 0) return;
   votes[id] = (votes[id] || 0) + 1;
   myVotes[id] = (myVotes[id] || 0) + 1;
-  saveMyVotes();
-  render();
+  saveMyVotes(); render();
   pushVote(id, votes[id]);
 }
 
@@ -175,8 +186,7 @@ async function removeVote(id) {
   votes[id] = Math.max(0, (votes[id] || 1) - 1);
   myVotes[id] = (myVotes[id] || 1) - 1;
   if (myVotes[id] === 0) delete myVotes[id];
-  saveMyVotes();
-  render();
+  saveMyVotes(); render();
   pushVote(id, votes[id]);
 }
 
@@ -192,7 +202,7 @@ async function addCocktail() {
   document.getElementById('new-name').value = '';
   document.getElementById('new-recipe').value = '';
   render();
-  pushVote(id, 0);
+  pushCustom(c);
   showToast('Cocktail ajouté !');
 }
 
@@ -207,8 +217,7 @@ function buildEmojiRow() {
 
 function showToast(msg) {
   const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.classList.add('show');
+  t.textContent = msg; t.classList.add('show');
   setTimeout(() => t.classList.remove('show'), 2000);
 }
 
