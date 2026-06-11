@@ -75,7 +75,7 @@ body{font-family:sans-serif;background:#f5f5f5;color:#111;min-height:100vh}
 <div class="toast" id="toast"></div>
 
 <script>
-const API = 'https://script.google.com/macros/s/AKfycbwrwbhc6C2Hw6m6VjqpUN5POkHV1rmyx3Mv7s1aM92KuPxYDYTt5lcCKGwo2JkkieeNcg/exec';
+const API = 'https://script.google.com/macros/s/AKfycbwhNbIyOMLTqNsDvyJnLFlGm-pVMJlAAdOLiQCOx-QMBpAbbUFE6uR1-lIF8OUp2KloTQ/exec';
 const MAX_VOTES = 3;
 const MY_VOTES_KEY = 'cocktail_my_v4';
 const EMOJIS = ['🍹','🍸','🥂','🍷','🥃','🍺','🫧','🍋','🍓','🥭','🍑','🌺','🌴','🫐','🍒','🏖️','🌅','🌿','🥥','🌸'];
@@ -141,18 +141,16 @@ async function fetchVotes() {
   setSyncBadge('syncing');
   try {
     const data = await fetchVotesJsonp();
-    // Mettre à jour les votes
     const v = data.votes || {};
     allCocktails().forEach(c => {
       votes[c.id] = v[c.id] !== undefined ? parseInt(v[c.id]) : (votes[c.id] || 0);
     });
-    // Mettre à jour les cocktails custom depuis le sheet
     const customs = data.customs || [];
     customs.forEach(c => {
       if (!customCocktails.find(x => x.id === c.id)) {
         customCocktails.push(c);
-        votes[c.id] = v[c.id] !== undefined ? parseInt(v[c.id]) : 0;
       }
+      votes[c.id] = v[c.id] !== undefined ? parseInt(v[c.id]) : (votes[c.id] || 0);
     });
     setSyncBadge('ok');
   } catch(e) {
@@ -162,15 +160,18 @@ async function fetchVotes() {
 }
 
 function pushVote(id, count) {
-  const params = new URLSearchParams({cocktail_id: id, count: count});
-  fetch(API + '?' + params.toString(), {method: 'GET', mode: 'no-cors'}).catch(() => {});
+  const url = API + '?cocktail_id=' + encodeURIComponent(id) + '&count=' + encodeURIComponent(count);
+  fetch(url, {method: 'GET', mode: 'no-cors'}).catch(() => {});
 }
 
 function pushCustom(c) {
-  const params = new URLSearchParams({
-    add_custom: c.id, name: c.name, icon: c.icon, bg: c.bg, recipe: c.recipe
-  });
-  fetch(API + '?' + params.toString(), {method: 'GET', mode: 'no-cors'}).catch(() => {});
+  const url = API
+    + '?add_custom=' + encodeURIComponent(c.id)
+    + '&name=' + encodeURIComponent(c.name)
+    + '&icon=' + encodeURIComponent(c.icon)
+    + '&bg=' + encodeURIComponent(c.bg)
+    + '&recipe=' + encodeURIComponent(c.recipe);
+  fetch(url, {method: 'GET', mode: 'no-cors'}).catch(() => {});
 }
 
 async function castVote(id) {
@@ -203,6 +204,7 @@ async function addCocktail() {
   document.getElementById('new-recipe').value = '';
   render();
   pushCustom(c);
+  setTimeout(fetchVotes, 2000);
   showToast('Cocktail ajouté !');
 }
 
